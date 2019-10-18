@@ -1,4 +1,6 @@
-mvn clean package && java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv urls.txt
+java -jar tika-server-1.22.jar -h 0.0.0.0
+mvn clean package && java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output
+
 
 # Reference extractor of dspace files
 Extracts links on all files on dpace. So they could be crawled directly by a crawler.

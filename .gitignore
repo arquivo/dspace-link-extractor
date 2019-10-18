@@ -3,3 +3,4 @@ tikalinkextract
 .classpath
 output
 target
+tika-server-1.22.jar
