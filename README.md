@@ -1,5 +1,20 @@
-java -jar tika-server-1.22.jar -h 0.0.0.0
+
+# Dependencies
+This software requires the sofware tikalinkextract software.
+
+On other directory clone the sofware and start it like:
+
+```bash
+cd ..
+git clone git@github.com:httpreserve/tikalinkextract.git
+cd tikalinkextract
+java -mx1000m -jar tools/tika-server-1.20.jar --port=9998
+```
+
+Build this software and run it like:
+```bash
 mvn clean package && java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output
+```
 
 
 # Reference extractor of dspace files

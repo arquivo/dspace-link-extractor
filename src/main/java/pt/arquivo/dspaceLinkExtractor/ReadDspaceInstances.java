@@ -1,28 +1,30 @@
 package pt.arquivo.dspaceLinkExtractor;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+import javax.xml.ws.Holder;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 
 import crawlercommons.sitemaps.SiteMap;
@@ -38,25 +40,42 @@ import crawlercommons.sitemaps.UnknownFormatException;
  */
 public class ReadDspaceInstances {
 
-	private static String linkExtractorCmd = "./tikalinkextract -seeds -file %s > %s";
+	private static final String TIKA_LINK_EXTRACT_EXEC_PATH = FileSystems.getDefault().getPath(".").toAbsolutePath()
+			.toString() + File.separator + "tikalinkextract";
+	private static String linkExtractorCmd = TIKA_LINK_EXTRACT_EXEC_PATH + " -file %s -seeds";
+
+	private static Holder<Integer> handlesDownloadCount = new Holder<>(0);
+	private static Holder<Integer> handlesAlreadyDownloadedCount = new Holder<>(0);
+	private static Holder<Integer> bitstreamsDownloadCount = new Holder<>(0);
+	private static Holder<Integer> seedsCount = new Holder<>(0);
+
+	private static String outputDirectory;
+
+	public static TimerTask printCountersTimerTask = schedulePrintCounters();
 
 	public static void main(String[] args) throws Exception {
 		String dspaceInstancesUrlsFilename = args[0];
-		String outputDirectory = args[1];
-		Collection<String> dspaceInstancesUrls = readFileLines(dspaceInstancesUrlsFilename);
+		outputDirectory = args[1];
 
-//		FileOutputStream fos;
-//		try {
-//			fos = new FileOutputStream(outputFilename, true);
-//
-//		} catch (FileNotFoundException e) {
-//			System.err.println("Error creating the output file " + outputFilename);
-//			throw e;
-//		}
-//		final Appendable out = new BufferedWriter(new OutputStreamWriter(fos));
-//		final CSVPrinter printer = CSVFormat.TDF.print(out);
+		if (!new File(TIKA_LINK_EXTRACT_EXEC_PATH).canExecute()) {
+			System.err.println(
+					"It isn't possible to run the tikalinkextract software using: " + TIKA_LINK_EXTRACT_EXEC_PATH);
+			System.exit(-1);
+		}
 
-		dspaceInstancesUrls.stream().map(d -> {
+		try {
+			parseDspaceSiteMapsExtractSeeds(dspaceInstancesUrlsFilename);
+		} catch (Throwable t) {
+			t.printStackTrace();
+			System.exit(-1);
+		} finally {
+			printCountersTimerTask.cancel();
+		}
+		System.exit(0);
+	}
+
+	private static void parseDspaceSiteMapsExtractSeeds(String dspaceInstancesUrlsFilename) {
+		readFileLines(dspaceInstancesUrlsFilename).filter(d -> !d.startsWith("#")).map(d -> {
 			try {
 				return new URL(d);
 			} catch (MalformedURLException e) {
@@ -67,109 +86,150 @@ public class ReadDspaceInstances {
 
 			System.out.println("Starting dspace site map " + dspaceSiteMapUrl);
 
-			Consumer<? super SiteMapURL> consumer = siteMapEntry -> {
-				URL url = siteMapEntry.getUrl();
-				String path = url.getPath();
+			SiteMap siteMap = getDspaceSiteMap(dspaceSiteMapUrl);
+			siteMap.getSiteMapUrls().forEach(getSiteMapEntryConsumer(dspaceSiteMapUrl));
+		});
+	}
 
-				String dspaceHost = dspaceSiteMapUrl.getHost();
+	private static Consumer<? super SiteMapURL> getSiteMapEntryConsumer(URL dspaceSiteMapUrl) {
+		return siteMapEntry -> {
+			URL url = siteMapEntry.getUrl();
+
+			String dspaceHost = dspaceSiteMapUrl.getHost();
+			try {
+				Files.createDirectories(Paths.get(outputDirectory + "/" + dspaceHost));
+			} catch (IOException e) {
+				throw new RuntimeException("Error creating dspace site folder " + dspaceHost);
+			}
+
+			String fileName = outputDirectory + "/" + getFilenameFromUrl(url);
+			File file = new File(fileName);
+
+			boolean fileExists = file.exists();
+			if (!fileExists) {
+				fileExists = downloadUrlToFile(url, file);
+				handlesDownloadCount.value++;
+			} else {
+				handlesAlreadyDownloadedCount.value++;
+			}
+
+			if (fileExists) {
+				getRelevantUrls(dspaceSiteMapUrl, fileName).stream().forEach(bitstream -> {
+					String m = parseDspaceBitstream(bitstream);
+					System.out.println(m);
+				});
+			}
+		};
+	}
+
+	private static String parseDspaceBitstream(String bitstream) {
+		StringBuilder m = new StringBuilder();
+		m.append(bitstream);
+		URL bitstreamUrl;
+		try {
+			bitstreamUrl = new URL(bitstream);
+		} catch (MalformedURLException e) {
+			m.append(" - malformed url");
+			return m.toString();
+		}
+		File bitstreamFile = new File(outputDirectory + "/" + getFilenameFromUrl(bitstreamUrl));
+
+		if (!bitstreamFile.exists()) {
+			m.append(" - downloading");
+			bitstreamsDownloadCount.value++;
+			downloadUrlToFile(bitstreamUrl, bitstreamFile);
+			m.append(" - done");
+		} else {
+			m.append(" - already exists");
+		}
+
+		String extractedSeedsFilename = bitstreamFile.getAbsolutePath() + "_seeds.txt";
+		File extractedSeedsFile = new File(extractedSeedsFilename);
+		if (!extractedSeedsFile.exists()) {
+			m.append(extractSeeds(bitstreamFile, extractedSeedsFile));
+		}
+
+		bitstreamFile.delete();
+		return m.toString();
+	}
+
+	private static String extractSeeds(File from, File to) {
+		StringBuilder m = new StringBuilder();
+		m.append(", extracting links");
+
+		Process p;
+		try {
+			String cmd = String.format(linkExtractorCmd, from.getAbsolutePath());
+//			System.out.println(cmd);
+
+			ProcessBuilder pb = new ProcessBuilder();
+			pb.redirectOutput(to);
+			pb.command(cmd.split("\\s+"));
+			p = pb.start();
+		} catch (IOException e) {
+			m.append(" Error executing link extractor - original message: " + e.getMessage());
+			e.printStackTrace();
+			return m.toString();
+		}
+		try {
+			p.waitFor();
+		} catch (InterruptedException e) {
+			m.append(" Interrupted exception " + e.getMessage());
+		}
+		int exitVal = p.exitValue();
+		if (exitVal == 0) {
+			m.append(" done");
+			Iterable<String> iter = () -> {
 				try {
-					Files.createDirectories(Paths.get(outputDirectory + "/" + dspaceHost));
+					return FileUtils.lineIterator(to);
 				} catch (IOException e) {
-					throw new RuntimeException("Error creating dspace site folder " + dspaceHost);
-				}
-
-				String fileName = outputDirectory + "/" + getFilenameFromUrl(url);
-				File file = new File(fileName);
-
-				boolean fileExists = file.exists();
-				if (!fileExists) {
-					fileExists = downloadUrlToFile(url, file);
-				}
-
-				if (fileExists) {
-					getRelevantUrls(dspaceSiteMapUrl, fileName).stream().forEach(bitstream -> {
-						System.out.print(bitstream);
-						URL bitstreamUrl;
-						try {
-							bitstreamUrl = new URL(bitstream);
-						} catch (MalformedURLException e) {
-							System.err.println(" - malformed url");
-							return;
-						}
-						File bitstreamFile = new File(outputDirectory + "/" + getFilenameFromUrl(bitstreamUrl));
-
-						if (!bitstreamFile.exists()) {
-							System.out.print(" - downloading");
-							downloadUrlToFile(bitstreamUrl, bitstreamFile);
-							System.out.println(" - done");
-						} else {
-							System.out.println(" - already exists");
-						}
-
-						String extractedReferencesFilename = bitstreamFile.getAbsolutePath() + "_urls.txt";
-						if (!new File(extractedReferencesFilename).exists()) {
-							System.out.print("Extracting links ... ");
-							Process p;
-							try {
-								String execCmd = String.format(linkExtractorCmd,
-										bitstreamFile.getAbsolutePath(), extractedReferencesFilename);
-								System.out.println(execCmd);
-								p = Runtime.getRuntime().exec(execCmd);
-							} catch (IOException e) {
-								System.err.println("Error executing link extractor - original message: " + e.getMessage());
-								return;
-							}
-							try {
-								p.waitFor();
-							} catch (InterruptedException e) {
-								System.err.println("Interrupted exception " + e.getMessage());
-							}
-							int exitVal = p.exitValue();
-							if (exitVal == 0) {
-								System.out.println("done");
-							} else {
-								System.err.println("ups...");
-							}
-						}
-					});
-
+					m.append(" Error counting seeds");
+					return new ArrayList<String>().iterator();
 				}
 			};
+			long fileSeedsCount = StreamSupport.stream(iter.spliterator(), false).count();
+			seedsCount.value += (int) fileSeedsCount;
+			m.append(" found " + fileSeedsCount + " seeds.");
 
-			SiteMap siteMap = getDspaceSiteMap(dspaceSiteMapUrl);
-			siteMap.getSiteMapUrls().forEach(consumer);
+		} else {
+			m.append(", ups problem extracting links");
+		}
+		return m.toString();
+	}
 
-		});
+	private static TimerTask schedulePrintCounters() {
+		TimerTask task = new TimerTask() {
+			@Override
+			public void run() {
+				System.out.println(String.format("handles [downloaded: %d, download previous %d] bitstreams [downloaded: %d] seeds [extracted: %d]",
+						handlesDownloadCount.value, handlesAlreadyDownloadedCount.value , bitstreamsDownloadCount.value, seedsCount.value));
+			}
+		};
+		Timer timer = new Timer();
+		timer.schedule(task, new Date(), 10000);
+		return task;
 	}
 
 	private static String getFilenameFromUrl(URL url) {
 		return url.toString().substring(url.getProtocol().length() + 3);
 	}
 
-	private static SiteMap getDspaceSiteMap(URL dspaceSitemMapUrl) {
-		byte[] dspaceSiteMapByteArray;
-		try {
-			dspaceSiteMapByteArray = IOUtils.toByteArray(openConnection(dspaceSitemMapUrl));
-		} catch (Exception e) {
-			throw new RuntimeException("Error getting bytes of dspace site map", e);
-		}
+	private static SiteMap getDspaceSiteMap(URL dspaceSiteMapUrl) {
+		File siteMapFile = new File(outputDirectory + File.separator + dspaceSiteMapUrl.getHost() + "_sitemap");
+		downloadUrlToFile(dspaceSiteMapUrl, siteMapFile);
 
-		// walkSiteMap(dspaceSitemMapUrl, consumer);
-		// hack because returned content type http header is incorrect
-		SiteMap siteMap;
 		try {
-			siteMap = (SiteMap) new SiteMapParser(false, true).parseSiteMap("application/xml", dspaceSiteMapByteArray,
-					dspaceSitemMapUrl);
+			return (SiteMap) new SiteMapParser(false, true).parseSiteMap("application/xml",
+					Files.readAllBytes(siteMapFile.toPath()), dspaceSiteMapUrl);
 		} catch (UnknownFormatException e) {
 			throw new RuntimeException("unknow format", e);
 		} catch (IOException e) {
 			throw new RuntimeException("Error parsing site map", e);
 		}
-		return siteMap;
 	}
 
-	private static List<String> getRelevantUrls(URL dspaceSitemMapUrl, String fileName) {
-		List<String> bitstreams = readFileLines(fileName).stream().flatMap(line -> {
+	private static List<String> getRelevantUrls(URL dspaceSiteMapUrl, String fileName) {
+		List<String> bitstreams = readFileLines(fileName).flatMap(line -> {
 			Pattern pattern = Pattern.compile("\"http[^ ]*/bitstream/[^ ]+\"");
 			Matcher matcher = pattern.matcher(line);
 
@@ -185,67 +245,57 @@ public class ReadDspaceInstances {
 	}
 
 	private static boolean downloadUrlToFile(URL url, File file) {
-		Reader reader;
 		try {
-			reader = openConnection(url);
-		} catch (IOException e) {
-			System.err.println("Error downloading skipping it: " + url);
-			return false;
-		}
-		try {
-			BufferedReader br = new BufferedReader(reader);
-			String inputLine;
+//			FileUtils.copyURLToFile(url, file);
 
-			if (!file.exists()) {
-				file.getParentFile().mkdirs();
+			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+			conn.setReadTimeout(5000);
+//			conn.addRequestProperty("Accept-Language", "en-US,en;q=0.8");
+//			conn.addRequestProperty("User-Agent", "Mozilla");
+//			conn.addRequestProperty("Referer", "google.com");
+
+			boolean redirect = false;
+
+			// normally, 3xx is redirect
+			int status = conn.getResponseCode();
+			if (status != HttpURLConnection.HTTP_OK) {
+				if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM
+						|| status == HttpURLConnection.HTTP_SEE_OTHER)
+					redirect = true;
+			}
+
+			if (redirect) {
+				// get redirect url from "location" header field
+				String newUrl = conn.getHeaderField("Location");
+				downloadUrlToFile(new URL(newUrl), file);
+			} else {
+				Files.createDirectories(Paths.get(file.getParent()));
 				file.createNewFile();
+
+				IOUtils.copy(conn.getInputStream(), new FileOutputStream(file));
+				if (GZipUtil.isGZipped(file)) {
+					byte[] decompressedData = GZipUtil.decompress(file);
+					FileUtils.writeByteArrayToFile(file, decompressedData);
+				}
 			}
-
-			// use FileWriter to write file
-			FileWriter fw = new FileWriter(file.getAbsoluteFile());
-			BufferedWriter bw = new BufferedWriter(fw);
-
-			while ((inputLine = br.readLine()) != null) {
-				bw.write(inputLine);
-			}
-
-			bw.close();
-			br.close();
-		} catch (IOException ioe) {
-			throw new RuntimeException("Error downloading url to file", ioe);
+		} catch (IOException e) {
+			System.err.println("Error downloading skipping it: " + url + " " + e.getMessage());
+//			e.printStackTrace();
+			return false;
 		}
 		return true;
 	}
 
-	private static Reader openConnection(URL url) throws IOException {
-		URLConnection conn = url.openConnection();
-		Reader reader = null;
-		String contentEncoding = conn.getContentEncoding();
-		if ("gzip".equals(contentEncoding)) {
-			reader = new InputStreamReader(new GZIPInputStream(conn.getInputStream()));
-		} else {
-			reader = new InputStreamReader(conn.getInputStream());
-		}
-		return reader;
-	}
-
-	private static Collection<String> readFileLines(String filename) {
-		Collection<String> lines = new ArrayList<>();
-		BufferedReader reader;
-		try {
-			reader = new BufferedReader(new FileReader(filename));
-			String line = reader.readLine();
-			while (line != null) {
-				lines.add(line);
-				// read next line
-				line = reader.readLine();
+	private static Stream<String> readFileLines(String filename) {
+		Iterable<String> iter = () -> {
+			try {
+				return FileUtils.lineIterator(new File(filename));
+			} catch (IOException e) {
+				System.err.println("Error reading file lines");
+				return new ArrayList<String>().iterator();
 			}
-			reader.close();
-		} catch (IOException e) {
-			throw new RuntimeException("Error reading lines from file: " + filename, e);
-		}
-
-		return lines;
+		};
+		return StreamSupport.stream(iter.spliterator(), false);
 	}
 
 }
