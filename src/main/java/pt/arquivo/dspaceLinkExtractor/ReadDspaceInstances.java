@@ -9,6 +9,9 @@ import java.net.URL;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -22,6 +25,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.X509TrustManager;
 import javax.xml.ws.Holder;
 
 import org.apache.commons.io.FileUtils;
@@ -56,6 +64,8 @@ public class ReadDspaceInstances {
 	public static void main(String[] args) throws Exception {
 		String dspaceInstancesUrlsFilename = args[0];
 		outputDirectory = args[1];
+
+		trustEveryone();
 
 		if (!new File(TIKA_LINK_EXTRACT_EXEC_PATH).canExecute()) {
 			System.err.println(
@@ -201,8 +211,10 @@ public class ReadDspaceInstances {
 		TimerTask task = new TimerTask() {
 			@Override
 			public void run() {
-				System.out.println(String.format("handles [downloaded: %d, download previous %d] bitstreams [downloaded: %d] seeds [extracted: %d]",
-						handlesDownloadCount.value, handlesAlreadyDownloadedCount.value , bitstreamsDownloadCount.value, seedsCount.value));
+				System.out.println(String.format(
+						"handles [downloaded: %d, download previous %d] bitstreams [downloaded: %d] seeds [extracted: %d]",
+						handlesDownloadCount.value, handlesAlreadyDownloadedCount.value, bitstreamsDownloadCount.value,
+						seedsCount.value));
 			}
 		};
 		Timer timer = new Timer();
@@ -298,4 +310,28 @@ public class ReadDspaceInstances {
 		return StreamSupport.stream(iter.spliterator(), false);
 	}
 
+	private static void trustEveryone() {
+		try {
+			HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+				public boolean verify(String hostname, SSLSession session) {
+					return true;
+				}
+			});
+			SSLContext context = SSLContext.getInstance("TLS");
+			context.init(null, new X509TrustManager[] { new X509TrustManager() {
+				public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+				}
+
+				public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+				}
+
+				public X509Certificate[] getAcceptedIssuers() {
+					return new X509Certificate[0];
+				}
+			} }, new SecureRandom());
+			HttpsURLConnection.setDefaultSSLSocketFactory(context.getSocketFactory());
+		} catch (Exception e) { // should never happen
+			e.printStackTrace();
+		}
+	}
 }
