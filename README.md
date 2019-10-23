@@ -24,9 +24,16 @@ cd tikalinkextract
 java -mx1000m -jar tools/tika-server-1.20.jar --port=9998
 ```
 
-## Run
-Build this software and run it like:
+## Build
 
 ```bash
-mvn clean package && java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output
+mvn clean package
 ```
+
+# Run
+
+```bash
+java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output
+```
+
+
