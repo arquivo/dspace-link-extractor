@@ -49,7 +49,7 @@ import crawlercommons.sitemaps.UnknownFormatException;
 public class ReadDspaceInstances {
 
 	private static final String TIKA_LINK_EXTRACT_EXEC_PATH = FileSystems.getDefault().getPath(".").toAbsolutePath()
-			.toString() + File.separator + "tikalinkextract";
+			.toString() + File.separator + "tools" + File.separator + "tikalinkextract";
 	private static String linkExtractorCmd = TIKA_LINK_EXTRACT_EXEC_PATH + " -file %s -seeds";
 
 	private static Holder<Integer> handlesDownloadCount = new Holder<>(0);
