@@ -13,14 +13,11 @@ Like:
  - To file: output/repositorio-aberto.up.pt/bitstream/10216/63886/2/90220.pdf_seeds.txt
 
 ## Dependencies
-It uses the [tikalinkextract](https://github.com/httpreserve/tikalinkextract "tikalinkextract") software.
+It uses the [tikalinkextract](https://github.com/httpreserve/tikalinkextract "tikalinkextract") software and tika server.
 
-On other directory clone the sofware and start it like:
+On other shell run:
 
 ```bash
-cd ..
-git clone git@github.com:httpreserve/tikalinkextract.git
-cd tikalinkextract
 java -mx1000m -jar tools/tika-server-1.20.jar --port=9998
 ```
 
