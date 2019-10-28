@@ -29,8 +29,28 @@ mvn clean package
 
 # Run
 
+Run the dspace link extractor on background and redirect to a file:
+
 ```bash
-java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output
+java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output %> dspace.log &
 ```
 
+# Finished
+
+When thw crawl has finished you could remove all the handle folders. Because the seeds are on bitsteam folder.
+
+```bash
+find output -maxdepth 2 -name handle -exec rm -rf {} \;
+```
+
+Concatenate all the seeds on a single file:
+
+```bash
+find output/ -type f -name "*_seeds.txt" -exec cat {} \; >> seeds.txt
+```
+
+And then remove mails and filter duplicates:
+```bash
+cat seeds.txt | egrep -v "^mail.*" | sort | uniq > seeds_uniq.txt
+```
 
