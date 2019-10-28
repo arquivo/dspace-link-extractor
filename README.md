@@ -5,12 +5,13 @@ This repository contains a software that extracts links on DSpace bitstream docu
 Given a file with links to sitemap DSpace.
 
 ## Algoritm
-For each sitemap, parse DSpace site map.
-For each site map entry, download it and on its HTML extract relevant URLs using a regex that matches bitstream links.
-For each bitstream URL, download it, extract its links using [tikalinkextract](https://github.com/httpreserve/tikalinkextract "tikalinkextract") software and save each links extracted to a file with same file structure.
+- For each sitemap, parse DSpace site map.
+- For each site map entry, download it and on its HTML extract relevant URLs using a regex that matches bitstream links.
+- For each bitstream URL, download it, extract its links using [tikalinkextract](https://github.com/httpreserve/tikalinkextract "tikalinkextract") software and save each links extracted to a file with same file structure.
+
 Like:
- - From URL http://repositorio-aberto.up.pt/bitstream/10216/63886/2/90220.pdf
- - To file: output/repositorio-aberto.up.pt/bitstream/10216/63886/2/90220.pdf_seeds.txt
+- From URL http://repositorio-aberto.up.pt/bitstream/10216/63886/2/90220.pdf
+- To file: output/repositorio-aberto.up.pt/bitstream/10216/63886/2/90220.pdf_seeds.txt
 
 ## Dependencies
 It uses the [tikalinkextract](https://github.com/httpreserve/tikalinkextract "tikalinkextract") software and tika server.
