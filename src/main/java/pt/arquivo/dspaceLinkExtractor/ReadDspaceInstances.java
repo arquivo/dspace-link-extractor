@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,8 +49,10 @@ import crawlercommons.sitemaps.UnknownFormatException;
  */
 public class ReadDspaceInstances {
 
-	private static final String TIKA_LINK_EXTRACT_EXEC_PATH = FileSystems.getDefault().getPath(".").toAbsolutePath()
-			.toString() + File.separator + "tools" + File.separator + "tikalinkextract";
+	private static final String TIKA_LINK_EXTRACT_EXEC_PATH =
+//			FileSystems.getDefault().getPath(".").toAbsolutePath()
+//			.toString() + File.separator +
+			"tools" + File.separator + "tikalinkextract-linux64";
 	private static String linkExtractorCmd = TIKA_LINK_EXTRACT_EXEC_PATH + " -file %s -seeds";
 
 	private static Holder<Integer> handlesDownloadCount = new Holder<>(0);
@@ -183,6 +186,11 @@ public class ReadDspaceInstances {
 		}
 		try {
 			p.waitFor();
+			p.waitFor(1, TimeUnit.MINUTES); // let the process run for 1 minute
+			p.destroy(); // tell the process to stop
+			p.waitFor(2, TimeUnit.SECONDS); // give it a chance to stop
+			p.destroyForcibly(); // tell the OS to kill the process
+			p.waitFor(); // the process is now dead
 		} catch (InterruptedException e) {
 			m.append(" Interrupted exception " + e.getMessage());
 		}
