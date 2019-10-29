@@ -33,7 +33,13 @@ mvn clean package
 Run the dspace link extractor on background and redirect to a file:
 
 ```bash
-java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv tput >> dspace.log 2>&1
+java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output >> dspace.log 2>&1
+```
+
+If you only want the entries that have been changed from a specific date add a date on argument like using format yyyy-MM-dd like:
+
+```bash
+java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output 2019-01-01 >> dspace.log 2>&1
 ```
 
 # Finish

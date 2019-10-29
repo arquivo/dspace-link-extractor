@@ -6,12 +6,13 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -49,10 +50,8 @@ import crawlercommons.sitemaps.UnknownFormatException;
  */
 public class ReadDspaceInstances {
 
-	private static final String TIKA_LINK_EXTRACT_EXEC_PATH =
-//			FileSystems.getDefault().getPath(".").toAbsolutePath()
-//			.toString() + File.separator +
-			"tools" + File.separator + "tikalinkextract-linux64";
+	private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd");
+	private static final String TIKA_LINK_EXTRACT_EXEC_PATH = "tools" + File.separator + "tikalinkextract-linux64";
 	private static String linkExtractorCmd = TIKA_LINK_EXTRACT_EXEC_PATH + " -file %s -seeds";
 
 	private static Holder<Integer> handlesDownloadCount = new Holder<>(0);
@@ -67,6 +66,18 @@ public class ReadDspaceInstances {
 	public static void main(String[] args) throws Exception {
 		String dspaceInstancesUrlsFilename = args[0];
 		outputDirectory = args[1];
+		Date from = null;
+		if (args.length >= 3) {
+			try {
+				String fromStr = args[2];
+				from = SDF.parse(fromStr);
+				System.out.println("From " + fromStr);
+			} catch (ParseException e) {
+				e.printStackTrace();
+				System.err.println("Error parsing date");
+				System.exit(-1);
+			}
+		}
 
 		trustEveryone();
 
@@ -77,7 +88,7 @@ public class ReadDspaceInstances {
 		}
 
 		try {
-			parseDspaceSiteMapsExtractSeeds(dspaceInstancesUrlsFilename);
+			parseDspaceSiteMapsExtractSeeds(dspaceInstancesUrlsFilename, from);
 		} catch (Throwable t) {
 			t.printStackTrace();
 			System.exit(-1);
@@ -87,7 +98,7 @@ public class ReadDspaceInstances {
 		System.exit(0);
 	}
 
-	private static void parseDspaceSiteMapsExtractSeeds(String dspaceInstancesUrlsFilename) {
+	private static void parseDspaceSiteMapsExtractSeeds(String dspaceInstancesUrlsFilename, Date from) {
 		readFileLines(dspaceInstancesUrlsFilename).filter(d -> !d.startsWith("#")).map(d -> {
 			try {
 				return new URL(d);
@@ -99,8 +110,14 @@ public class ReadDspaceInstances {
 
 			System.out.println("Starting dspace site map " + dspaceSiteMapUrl);
 
-			SiteMap siteMap = getDspaceSiteMap(dspaceSiteMapUrl);
-			siteMap.getSiteMapUrls().forEach(getSiteMapEntryConsumer(dspaceSiteMapUrl));
+			getDspaceSiteMap(dspaceSiteMapUrl) //
+					.getSiteMapUrls() //
+					.stream() //
+					.filter(siteMapUrl -> {
+						Date lastModified = siteMapUrl.getLastModified();
+						return from == null || lastModified != null && from.before(lastModified);
+					}) //
+					.forEach(getSiteMapEntryConsumer(dspaceSiteMapUrl));
 		});
 	}
 
@@ -127,7 +144,7 @@ public class ReadDspaceInstances {
 			}
 
 			if (fileExists) {
-				getRelevantUrls(dspaceSiteMapUrl, fileName).stream().forEach(bitstream -> {
+				getRelevantUrls(fileName).stream().forEach(bitstream -> {
 					String m = parseDspaceBitstream(bitstream);
 					System.out.println(m);
 				});
@@ -248,7 +265,7 @@ public class ReadDspaceInstances {
 		}
 	}
 
-	private static List<String> getRelevantUrls(URL dspaceSiteMapUrl, String fileName) {
+	private static List<String> getRelevantUrls(String fileName) {
 		List<String> bitstreams = readFileLines(fileName).flatMap(line -> {
 			Pattern pattern = Pattern.compile("\"http[^ ]*/bitstream/[^ ]+\"");
 			Matcher matcher = pattern.matcher(line);
