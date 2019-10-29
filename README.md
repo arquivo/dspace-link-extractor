@@ -33,7 +33,7 @@ mvn clean package
 Run the dspace link extractor on background and redirect to a file:
 
 ```bash
-java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv output %> dspace.log &
+java -jar target/dspace-link-extractor-0.1-SNAPSHOT.jar dspace-urls.tsv tput >> dspace.log 2>&1
 ```
 
 # Finish
