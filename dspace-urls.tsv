@@ -1,30 +1,24 @@
-# http://arca.igc.gulbenkian.pt/sitemap?map=0
-# https://bdigital.ufp.pt/sitemap?map=0
-# http://bibliotecadigital.ipb.pt/sitemap?map=0
-# http://comum.rcaap.pt/sitemap?map=0
-# http://digituma.uma.pt/sitemap?map=0
-# http://iconline.ipleiria.pt/sitemap?map=0
-# http://recipp.ipp.pt/sitemap?map=0
-# http://repositorio.chlc.min-saude.pt/sitemap?map=0
-# http://repositorio.chporto.pt/sitemap?map=0
-#
+http://arca.igc.gulbenkian.pt/sitemap?map=0
+https://bdigital.ufp.pt/sitemap?map=0
+http://bibliotecadigital.ipb.pt/sitemap?map=0
+http://comum.rcaap.pt/sitemap?map=0
+http://digituma.uma.pt/sitemap?map=0
+http://iconline.ipleiria.pt/sitemap?map=0
+http://recipp.ipp.pt/sitemap?map=0
+http://repositorio.chlc.min-saude.pt/sitemap?map=0
+http://repositorio.chporto.pt/sitemap?map=0
 http://repositorio.hff.min-saude.pt/sitemap?map=0  
-# ssl handshake error
-#
-# http://repositorio.hospitaldebraga.pt/sitemap?map=0
-# http://repositorio.insa.pt/sitemap?map=0
-# http://repositorio.ipcb.pt/sitemap?map=0
-# http://repositorio.ipl.pt/sitemap?map=0
-# http://repositorio.ipsantarem.pt/sitemap?map=0
-# http://repositorio.ipv.pt/sitemap?map=0
-# http://repositorio.ismai.pt/sitemap?map=0
-# http://repositorio.ispa.pt/sitemap?map=0
-# http://repositorio.lneg.pt/sitemap?map=0
-# http://repositorio.uac.pt/sitemap?map=0
-#
+http://repositorio.hospitaldebraga.pt/sitemap?map=0
+http://repositorio.insa.pt/sitemap?map=0
+http://repositorio.ipcb.pt/sitemap?map=0
+http://repositorio.ipl.pt/sitemap?map=0
+http://repositorio.ipsantarem.pt/sitemap?map=0
+http://repositorio.ipv.pt/sitemap?map=0
+http://repositorio.ismai.pt/sitemap?map=0
+http://repositorio.ispa.pt/sitemap?map=0
+http://repositorio.lneg.pt/sitemap?map=0
+http://repositorio.uac.pt/sitemap?map=0
 http://repositorio.ucp.pt/sitemap?map=0  
-# unable to find valid certification path to requested target
-#
 http://repositorio.ul.pt/sitemap?map=0
 http://repositorioaberto.uab.pt/sitemap?map=0
 http://rihuc.huc.min-saude.pt/sitemap?map=0
@@ -32,9 +26,6 @@ http://run.unl.pt/sitemap?map=0
 http://sapientia.ualg.pt/sitemap?map=0
 http://uBibliorum.ubi.pt/sitemap?map=0
 http://www.repository.utl.pt/sitemap?map=0
-#
-# Additional repositories from https://www.rcaap.pt/directory.jsp
-#
 http://repositorio.esepf.pt/sitemap?map=0
 http://repositorio.ual.pt/sitemap?map=0
 http://repositorio.ulusiada.pt/sitemap?map=0
